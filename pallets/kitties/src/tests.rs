@@ -1,4 +1,4 @@
-use crate::{Error, mock::*};
+use crate::{Error, mock::*, pallet};
 use frame_support::{assert_ok, assert_noop};
 
 #[test]
@@ -74,3 +74,79 @@ fn it_works_for_transfer() {
         assert_eq!(KittiesModule::kitty_owner(kitty_id), Some(account_id));
     })
 }
+
+#[test]
+fn check_events_for_create() {
+    use frame_system::pallet_prelude::*;
+
+    new_test_ext().execute_with(|| {
+
+        let kitty_id = KittiesModule::next_kitty_id();
+        let account_id = 1;
+
+        let origin = RuntimeOrigin::signed(account_id);
+        let who = ensure_signed(origin.clone());
+        assert_ok!(&who);
+
+        assert_ok!(KittiesModule::create(origin));
+
+        println!("kitty_id: {}", kitty_id);
+        let kitty = KittiesModule::kitties(kitty_id);
+        assert_eq!(KittiesModule::kitties(kitty_id).is_some(), true);
+
+        System::assert_has_event(pallet::Event::<Test>::KittyCreated { who: who.unwrap(), kitty_id, kitty: kitty.unwrap()}.into());
+
+    })
+}
+
+#[test]
+fn check_events_for_breed() {
+    use frame_system::pallet_prelude::*;
+
+    new_test_ext().execute_with(|| {
+        let kitty_id = 0;
+        let account_id = 1;
+
+        let origin = RuntimeOrigin::signed(account_id);
+        let who = ensure_signed(origin.clone());
+        assert_ok!(&who);
+
+        assert_ok!(KittiesModule::create(origin.clone()));
+        assert_ok!(KittiesModule::create(origin.clone()));
+
+        assert_eq!(KittiesModule::next_kitty_id(), kitty_id + 2);
+
+        assert_ok!(KittiesModule::breed(origin.clone(), kitty_id, kitty_id + 1));
+
+        let kitty = KittiesModule::kitties(kitty_id + 2);
+        assert_eq!(kitty.is_some(), true);
+
+        System::assert_has_event(pallet::Event::<Test>::KittyBreed{ who: who.unwrap(), kitty_id: kitty_id + 2, kitty: kitty.unwrap()}.into());
+
+    })
+}
+
+#[test]
+fn check_events_for_transfer() {
+    use frame_system::pallet_prelude::*;
+
+    new_test_ext().execute_with(|| {
+
+        let kitty_id = 0;
+        let account_id = 1;
+        let recipient = 2;
+
+        let origin = RuntimeOrigin::signed(account_id);
+        let who = ensure_signed(origin.clone());
+        assert_ok!(&who);
+
+        assert_ok!(KittiesModule::create(origin.clone()));
+        assert_eq!(KittiesModule::kitty_owner(kitty_id), Some(account_id));
+
+        assert_ok!(KittiesModule::transfer(RuntimeOrigin::signed(account_id), recipient, kitty_id));
+
+        System::assert_has_event(pallet::Event::<Test>::KittyTransferred { who: who.unwrap(), receipt: recipient, kitty_id }.into());
+
+    })
+}
+
